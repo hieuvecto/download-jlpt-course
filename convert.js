@@ -9,14 +9,8 @@ var base_url = 'https://cdn.webtiengnhat.com'
 // get from browser's network tool
 // NOTES: change it
 //var playlistUrl = base_url + '/list/pvdupload/smil:1544355855-3faa7fca8747da87d8cbfcd77647b130e856a2bf-5c0d000f0d0fb-ng-phap-n3-online-uchini-1.smil/1544355855-3faa7fca8747da87d8cbfcd77647b130e856a2bf-5c0d000f0d0fb-ng-phap-n3-online-uchini-1.mp4_chunk.m3u8?nimblesessionid=97160';
-// var playlistUrl = 'https://cdn.webtiengnhat.com/list/pvdupload/smil:1560481497-3faa7fca8747da87d8cbfcd77647b130e856a2bf-5d030ed9971f7-buoi-13-phan-3.smil/1560481497-3faa7fca8747da87d8cbfcd77647b130e856a2bf-5d030ed9971f7-buoi-13-phan-3__sd.mp4_chunk.m3u8?nimblesessionid=112934'
+var playlistUrl = 'https://cdn.webtiengnhat.com/list/pvdupload/smil:1560481497-3faa7fca8747da87d8cbfcd77647b130e856a2bf-5d030ed9971f7-buoi-13-phan-3.smil/1560481497-3faa7fca8747da87d8cbfcd77647b130e856a2bf-5d030ed9971f7-buoi-13-phan-3__sd.mp4_chunk.m3u8?nimblesessionid=112934'
 
-if (process.argv.length < 3 || process.argv.length > 4) {
-    throw new Error("Not expected arguments.");
-}
-    
-var playlistUrl = process.argv[2];
-var fileName = process.argv[3];
 var numOfParts = 0;
 
 function getTsPart(num) {
@@ -27,7 +21,7 @@ async function getTsUrl(num) {
     let rs = await axios.get(base_url + "/video/touch.php");
     let token = rs.data;
     console.log({ token });
-    let tsUrl = getTsPart(num) + "&xtoken=" +
+    let tsUrl = getTsPart(num) + "&token=" +
         function (_token) {
             {
                 var c = "";
@@ -96,69 +90,17 @@ function copyOutput() {
     );
 }
 async function download(numOfParts) {
-    // Clean data
-    try {
-        await cleanData();
-    } catch(e) {
-        
-    }
-    
-
-    // download m3u8 file
-    let _m3u8Path = path.resolve(__dirname, 'data', '_in.m3u8')
-    await downloadFile(playlistUrl, _m3u8Path)
-
-    // regenerate m3u8 file
-    let m3u8Path = path.resolve(__dirname, 'data', 'in.m3u8')
-    fs.readFile(_m3u8Path, 'utf8', function (err, data) {
-        if (err) {
-            return console.log(err);
-        }
-        var result = data.replace(/\?nimblesessionid=[0-9]*/g, '')
-        // get number of Ts files
-        numOfParts = data.match(/ts/gm).length
-        console.log({ numOfParts })
-
-        fs.writeFile(m3u8Path, result, 'utf8', function (err) {
-            if (err) return console.log(err);
-        });
-    });
-
-    // download hls key
-    let hlsPath = path.resolve(__dirname, 'data', 'hls.key')
-    let hlsKeyurl = playlistUrl.replace(/\.smil\/.*m3u8/g, '.smil/hls.key')
-    console.log('hls key', hlsKeyurl)
-    await downloadFile(hlsKeyurl, hlsPath)
-
-    // download all Ts files
-    for (var i = 0; i < numOfParts; i++) {
-        try {
-            let tsUrl = await getTsUrl(i)
-
-            // download a ts file
-            let filenameTs = tsUrl.split('?')[0].split(':').reverse()[0].split('/')[1];
-            const filePathTs = path.resolve(__dirname, 'data', filenameTs)
-            console.log({
-                'Downloading ts': tsUrl
-            });
-            await downloadFile(tsUrl, filePathTs)
-
-        } catch (error) {
-            console.log(error)
-            process.exit()
-        }
-    }
     await convertTs2Mp4();
     console.log({
         'Output': path.resolve(__dirname, 'data', 'output.mp4')
     })
 
-    // Clean data
-    try {
-        await copyOutput();
-    } catch(e) {
-        console.log("Error: ", e);
-    }
+    // // Clean data
+    // try {
+    //     await copyOutput();
+    // } catch(e) {
+    //     console.log("Error: ", e);
+    // }
 }
 
 download(numOfParts);

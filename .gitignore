@@ -119,3 +119,4 @@ dist
 *.key
 *.m3u8
 .DS_Store
+output/
