@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const axios = require('axios');
+const tmp = require('tmp');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -19,6 +20,11 @@ var playlistUrl = process.argv[2];
 var fileName = process.argv[3];
 var numOfParts = 0;
 
+
+if (fs.existsSync(`${path.resolve(__dirname, 'output')}/${fileName}.mp4`)) {
+    throw new Error(`${path.resolve(__dirname, 'output')}/${fileName}.mp4 file existed.`);
+}
+  
 function getTsPart(num) {
     return playlistUrl.replace('mp4_chunk.m3u8', 'mp4-n_' + num + '_0_0.ts');
 }
@@ -65,20 +71,20 @@ async function downloadFile(url, path) {
 }
 
 // NOTES: you must install ffmpeg first
-function convertTs2Mp4() {
+function convertTs2Mp4(tmpDir) {
     return require('child_process').execSync(
         'ffmpeg -allowed_extensions ALL -protocol_whitelist file,https,http,crypto,data,tls -i '
-        + path.resolve(__dirname, 'data', 'in.m3u8') + ' -hls_time 10 -c copy -bsf:a aac_adtstoasc '
-        + path.resolve(__dirname, 'data', 'output.mp4') + ' -loglevel debug -y',
+        + path.resolve(tmpDir.name, 'in.m3u8') + ' -hls_time 10 -c copy -bsf:a aac_adtstoasc '
+        + path.resolve(tmpDir.name, 'output.mp4') + ' -loglevel debug -y',
         {
             stdio: 'inherit'
         }
     );
 }
 
-function cleanData() {
+function copyOutput(tmpDir) {
     return require('child_process').execSync(
-        `rm ${path.resolve(__dirname, 'data')}/* 2> /dev/null`
+        `cp ${tmpDir.name}/output.mp4  ${path.resolve(__dirname, 'output')}/${fileName}.mp4 2> /dev/null`
        ,
         {
             stdio: 'inherit'
@@ -86,30 +92,17 @@ function cleanData() {
     );
 }
 
-function copyOutput() {
-    return require('child_process').execSync(
-        `cp ${path.resolve(__dirname, 'data')}/output.mp4  ${path.resolve(__dirname, 'output')}/${fileName}.mp4 2> /dev/null`
-       ,
-        {
-            stdio: 'inherit'
-        }
-    );
-}
 async function download(numOfParts) {
-    // Clean data
-    try {
-        await cleanData();
-    } catch(e) {
-        
-    }
-    
+    // Create tmp directory
+    const tmpDir = tmp.dirSync({'unsafeCleanup': true});
+    console.log("Temp dir: ", tmpDir.name);
 
     // download m3u8 file
-    let _m3u8Path = path.resolve(__dirname, 'data', '_in.m3u8')
+    let _m3u8Path = path.resolve(tmpDir.name, '_in.m3u8');
     await downloadFile(playlistUrl, _m3u8Path)
 
     // regenerate m3u8 file
-    let m3u8Path = path.resolve(__dirname, 'data', 'in.m3u8')
+    let m3u8Path = path.resolve(tmpDir.name, 'in.m3u8')
     fs.readFile(_m3u8Path, 'utf8', function (err, data) {
         if (err) {
             return console.log(err);
@@ -125,7 +118,7 @@ async function download(numOfParts) {
     });
 
     // download hls key
-    let hlsPath = path.resolve(__dirname, 'data', 'hls.key')
+    let hlsPath = path.resolve(tmpDir.name, 'hls.key')
     let hlsKeyurl = playlistUrl.replace(/\.smil\/.*m3u8/g, '.smil/hls.key')
     console.log('hls key', hlsKeyurl)
     await downloadFile(hlsKeyurl, hlsPath)
@@ -137,7 +130,7 @@ async function download(numOfParts) {
 
             // download a ts file
             let filenameTs = tsUrl.split('?')[0].split(':').reverse()[0].split('/')[1];
-            const filePathTs = path.resolve(__dirname, 'data', filenameTs)
+            const filePathTs = path.resolve(tmpDir.name, filenameTs)
             console.log({
                 'Downloading ts': tsUrl
             });
@@ -148,17 +141,19 @@ async function download(numOfParts) {
             process.exit()
         }
     }
-    await convertTs2Mp4();
+    await convertTs2Mp4(tmpDir);
     console.log({
-        'Output': path.resolve(__dirname, 'data', 'output.mp4')
+        'Output': path.resolve(tmpDir.name, 'output.mp4')
     })
 
     // Clean data
     try {
-        await copyOutput();
+        await copyOutput(tmpDir);
     } catch(e) {
         console.log("Error: ", e);
     }
+
+    tmpDir.removeCallback();
 }
 
 download(numOfParts);
