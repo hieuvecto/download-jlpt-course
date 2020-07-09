@@ -109,7 +109,7 @@ async function download(numOfParts) {
         }
         var result = data.replace(/\?nimblesessionid=[0-9]*/g, '')
         // get number of Ts files
-        numOfParts = data.match(/ts/gm).length
+        numOfParts = data.match(/\.ts/gm).length
         console.log({ numOfParts })
 
         fs.writeFile(m3u8Path, result, 'utf8', function (err) {
